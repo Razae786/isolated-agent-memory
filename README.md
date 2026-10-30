@@ -1,135 +1,121 @@
-<div align="center">
+# isolated-agent-memory
 
-# 🧠 Isolated Agent Memory
+Deterministic, workspace-isolated persistent memory for AI coding agents.
 
-**Zero-daemon, drive-decoupled persistent memory skill for AI coding assistants with strict cross-project isolation.**
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Platform: Windows | macOS | Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
-[![Zero Daemon](https://img.shields.io/badge/daemon-0%20RAM%20%2F%200%20VRAM-brightgreen)]()
-
-*Stop letting your AI coding agent forget your architecture on reboot. Stop letting Project A hallucinate code from Project B.*
-
-</div>
+`isolated-agent-memory` provides persistent ground truth for local developer agents (Google Antigravity, Claude Code, Cursor, Codex). It eliminates agent context loss across sessions and reboots without running background daemons or leaking state across unrelated repositories.
 
 ---
 
-## 💥 The Problem: Agent Amnesia & The "Global Memory Soup"
+## Architectural Motivation
 
-When you use local AI coding assistants (**Google Antigravity, Claude Code, Cursor, Windsurf**):
+Local AI developer agents are fundamentally stateless between sessions. When a session terminates, context residing in the active context window or process RAM is destroyed.
 
-1. **Agent Amnesia:** You spend an hour aligning on architectural invariants, database schemas, and hardware constraints. You close the IDE or reboot your machine. The next morning, you start a new turn — and the agent has completely forgotten your project ground truth.
-2. **The "Global Soup" Disaster:** Most open-source memory frameworks (MemGPT/Letta, Zep, Cognee) dump all memories into a single global vector store. Suddenly, your daily automation scripts cross-pollinate into your core enterprise repository.
-3. **Daemon & Resource Bloat:** Existing tools require background Docker containers, local PostgreSQL servers, or paid cloud APIs that eat your laptop RAM and VRAM.
+Existing agent memory implementations typically introduce two structural problems:
 
----
+1. **Cross-Project State Contamination:** Common vector-store backends aggregate embeddings into a flat, shared index. Facts established in Repository A (e.g., API keys, schema constraints, script parameters) leak into queries executed in Repository B.
+2. **Runtime Overhead:** Frameworks relying on external daemon services (PostgreSQL, Docker containers, or remote SaaS endpoints) introduce persistent CPU/RAM overhead, network latency, and unnecessary failure points on local developer hardware.
 
-## ⚡ The Solution: Isolated Agent Memory
-
-`isolated-agent-memory` is a lightweight, zero-daemon persistence layer designed specifically for multi-project developers:
-
-* **Strict Per-Project Sandboxing:** Each workspace, repo, and chat session receives its own isolated SQLite + FTS5 partition. University FYP stays in FYP; side projects stay in side projects; work code stays in work code.
-* **Secondary Storage Decoupling:** Keep your fast primary OS drive (`C:\`) clean. Route all memory databases, embeddings, and checkpoints to any secondary drive (`D:\`, external NVMe, or network mount).
-* **Zero Active Daemons:** 0 MB idle RAM, 0 MB GPU VRAM. In-process execution with instantaneous `<15 ms` cold-start lookups.
-* **Zero-Command Auto-Injection:** Hooks directly into `AGENTS.md` and `CLAUDE.md`. The agent automatically senses the active workspace, loads relevant atomic facts, and logs checkpoints in the background.
+`isolated-agent-memory` resolves this by using an embedded, filesystem-partitioned architecture:
 
 ```
-                    ┌───────────────────────────────┐
-                    │  Active Coding Assistant      │
-                    │  (Antigravity / Claude / IDE) │
-                    └───────────────┬───────────────┘
-                                    │ Auto-Detect Workspace
-                                    ▼
-                    ┌───────────────────────────────┐
-                    │    Workspace Scope Resolver   │
-                    └───────┬───────────────┬───────┘
-                            │               │
-       ┌────────────────────┴───┐       ┌───┴────────────────────┐
-       ▼                        ▼       ▼                        ▼
-┌──────────────┐        ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│  Project A   │        │  Project B   │ │  Project C   │ │  Project N   │
-│  Isolated DB │        │  Isolated DB │ │  Isolated DB │ │  Isolated DB │
-└──────────────┘        └──────────────┘ └──────────────┘ └──────────────┘
- [0 Cross-Talk]          [0 Cross-Talk]   [0 Cross-Talk]   [0 Cross-Talk]
+[ Active Agent Session ]
+           │
+           │  1. Resolve Workspace Path
+           ▼
+[ Workspace Scope Resolver ]
+           │
+           │  2. Direct Route (No Shared Index)
+           ▼
+[ Storage Root: D:\AntigravityMemory\projects\ ]
+   ├── project_alpha\memory.db    <-- Partition A (Isolated SQLite + FTS5)
+   ├── project_beta\memory.db     <-- Partition B (Isolated SQLite + FTS5)
+   └── project_gamma\memory.db    <-- Partition C (Isolated SQLite + FTS5)
 ```
 
 ---
 
-## 🚀 Quickstart
+## Design Principles
 
-### 1. Installation
-Clone the repository:
+* **Strict Boundary Isolation:** Each workspace resolves deterministically to its own SQLite database. Queries never traverse partitions.
+* **Zero Runtime Daemon:** Implemented as an embedded Python module. 0 MB background RAM, 0 MB GPU VRAM, and zero network calls.
+* **Secondary Storage Offloading:** Designed to persist state on secondary storage (`D:\`, external NVMe) to prevent primary OS drive (`C:\`) saturation.
+* **Sub-Millisecond Cold Starts:** Full-Text Search (FTS5) and indexed key-value lookups complete in under 15 ms on startup.
+* **Hands-Off Execution:** Agent harnesses auto-load relevant memory upon session initialization through standardized rule files (`AGENTS.md`, `CLAUDE.md`).
+
+---
+
+## Installation
+
 ```bash
 git clone https://github.com/Razae786/isolated-agent-memory.git
 cd isolated-agent-memory
 pip install -e .
 ```
 
-### 2. Auto-Configure with Your Agent (1-Click)
-Run the automated binder script:
+To initialize your persistent storage directory on a chosen drive:
+
 ```powershell
-# Windows (PowerShell)
+# Windows
 .\install.ps1 -StorageDrive "D:"
 
-# Linux / macOS (Bash)
-./install.sh --storage-dir "/Volumes/External/AgentMemory"
+# Linux / macOS
+./install.sh --storage-dir "/Volumes/Storage/AgentMemory"
 ```
-
-This binds the auto-memory rules into your global `AGENTS.md` / `CLAUDE.md` files so your assistants automatically maintain ground truth across restarts.
 
 ---
 
-## 🛠️ CLI Usage (Optional)
+## Agent Harness Integration
 
-You never have to run manual commands during normal coding, but a full CLI is provided for inspections:
+To enable zero-command automated memory for your agents, add the following directive to your workspace or global rules file (`AGENTS.md` or `CLAUDE.md`):
+
+```markdown
+<!-- Persistent Memory Protocol -->
+Every workspace maintains its own isolated persistent database on secondary storage.
+1. On session start: Detect the active workspace path, inspect its partition in D:\AntigravityMemory\projects\<project_name>\memory.db, and ingest active ground-truth facts.
+2. During session: When an architectural decision, hardware constraint, or schema change is agreed upon, record it to memory.db via `vault add`.
+3. Never mix facts across different project namespaces.
+```
+
+---
+
+## Command Line Interface
+
+While agents manage read/write operations silently, a terminal utility is provided for inspection and manual maintenance:
+
+| Command | Description |
+|---|---|
+| `vault list` | Enumerate all project partitions and active fact counts. |
+| `vault recall [query]` | Execute an FTS5 search across the active project's database. |
+| `vault add --id <key> --category <cat> --fact <text>` | Insert or update an architectural decision. |
+| `vault checkpoint --summary <text> [--next <text>]` | Record a session checkpoint for cross-session continuity. |
+| `vault dump` | Export all active records for the current project as Markdown. |
+
+### Example Query
 
 ```bash
-# List all isolated memory partitions across all your projects
-vault list
-
-# Search memories in the current workspace
-vault recall "database schema"
-
-# Explicitly store an architectural decision
-vault add --id "auth_jwt" --category "security" --fact "Uses Ed25519 asymmetric JWT tokens with 15-min expiry"
-
-# Save a session checkpoint before shutting down your PC
-vault checkpoint --summary "Completed auth module and migration 003" --next "Implement refresh token rotation"
-
-# Dump active project memory as a markdown block
-vault dump
+$ vault recall ssim
+[FYP_ScreenMind] Found 2 facts matching 'ssim':
+  - [PERCEPTION] perc_cpu_ssim: Replaced YOLOv11 with 384px CPU SSIM Perceptual Gate (tau=0.88).
+    Details: mss captures raw frames in ~3ms (20+ FPS continuous). Shrinks to 384px grayscale on CPU (0 MB GPU VRAM).
 ```
 
 ---
 
-## 📁 Storage Layout (Zero C: Drive Impact)
+## Database Schema
 
-```text
-D:\AntigravityMemory\projects\
-├── ScreenMind_FYP\            ──> Dedicated to your primary project
-│   └── memory.db                  (Contains your architecture, models, thresholds)
-├── AI_Job_Hunter\             ──> Dedicated to your scrapers & automation
-│   └── memory.db                  (Contains job search parameters, resume paths)
-├── Web_App_Client\            ──> Dedicated to frontend development
-│   └── memory.db                  (Contains design tokens, API routes)
-└── <Any New Project>\         ──> Auto-created on demand with zero cross-leakage
-    └── memory.db
-```
+Each isolated database is an SQLite 3 file containing:
+
+* `facts`: Normalized key-value table containing fact identifiers, categories, status flags, and timestamps.
+* `facts_fts`: SQLite FTS5 virtual table for sub-millisecond keyword and token search.
+* `session_checkpoints`: Append-only audit log tracking accomplishments, modified files, and next actions.
 
 ---
 
-## 🧩 Compatibility
+## Technical Specifications
 
-| Assistant | Integration Method | Restart Persistence | Cross-Project Leakage |
-|---|---|---|---|
-| **Google Antigravity** | Global `AGENTS.md` + Custom Skill | ✅ Instant | ❌ Zero (Strict Partition) |
-| **Claude Code** | Global `CLAUDE.md` Rule | ✅ Instant | ❌ Zero (Strict Partition) |
-| **Cursor / Windsurf** | `.cursorrules` / System Rules | ✅ Instant | ❌ Zero (Strict Partition) |
-| **Codex / OpenCode** | Transparent Multi-Agent Bridge | ✅ Instant | ❌ Zero (Strict Partition) |
-
----
-
-## 📄 License
-
-MIT License. Free for personal, academic, and commercial use.
+* **Language:** Python 3.9+
+* **Database Engine:** Embedded SQLite 3 with FTS5 extension
+* **Memory Footprint:** 0 MB idle resident RAM
+* **Cold Lookup Latency:** < 15 ms
+* **Default Database Footprint:** ~48 KB per partition
+* **License:** MIT
