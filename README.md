@@ -2,7 +2,7 @@
 
 Deterministic, workspace-isolated persistent memory for AI coding agents.
 
-`isolated-agent-memory` provides persistent ground truth for local developer agents (Google Antigravity, Claude Code, Cursor, Codex). It eliminates agent context loss across sessions and reboots without running background daemons or leaking state across unrelated repositories.
+`isolated-agent-memory` provides persistent ground truth for local developer agents (Antigravity, Claude Code, Cursor, Codex). It eliminates agent context loss across sessions and reboots without running background daemons or leaking state across unrelated repositories.
 
 ---
 
@@ -32,12 +32,12 @@ flowchart TD
         Git -->|Resolve Root Path| Slug
     end
 
-    subgraph Storage["3. Secondary Storage Root (D:\\AntigravityMemory\\projects\\)"]
+    subgraph Storage["3. Storage Partition Root (Secondary Drive)"]
         direction TB
-        PartA[("Partition A: FYP_ScreenMind<br/>memory.db (SQLite + FTS5)")]
-        PartB[("Partition B: AI_Job_Hunter<br/>memory.db (SQLite + FTS5)")]
-        PartC[("Partition C: Web_App_Client<br/>memory.db (SQLite + FTS5)")]
-        PartN[("Partition N: New Project<br/>memory.db (Auto-Created)")]
+        PartA[("Partition A: backend_api<br/>memory.db (SQLite + FTS5)")]
+        PartB[("Partition B: mobile_client<br/>memory.db (SQLite + FTS5)")]
+        PartC[("Partition C: data_pipeline<br/>memory.db (SQLite + FTS5)")]
+        PartN[("Partition N: new_service<br/>memory.db (Auto-Created)")]
     end
 
     subgraph Engine["4. Zero-Daemon Persistence Engine"]
@@ -76,7 +76,7 @@ flowchart TD
 
 * **Strict Boundary Isolation:** Each workspace resolves deterministically to its own SQLite database. Queries never traverse partitions.
 * **Zero Runtime Daemon:** Implemented as an embedded Python module. 0 MB background RAM, 0 MB GPU VRAM, and zero network calls.
-* **Secondary Storage Offloading:** Designed to persist state on secondary storage (`D:\`, external NVMe) to prevent primary OS drive (`C:\`) saturation.
+* **Secondary Storage Offloading:** Designed to persist state on secondary storage (`D:\`, external NVMe, or custom path) to prevent primary OS drive saturation.
 * **Sub-Millisecond Cold Starts:** Full-Text Search (FTS5) and indexed key-value lookups complete in under 15 ms on startup.
 * **Hands-Off Execution:** Agent harnesses auto-load relevant memory upon session initialization through standardized rule files (`AGENTS.md`, `CLAUDE.md`).
 
@@ -109,7 +109,7 @@ To enable zero-command automated memory for your agents, add the following direc
 ```markdown
 <!-- Persistent Memory Protocol -->
 Every workspace maintains its own isolated persistent database on secondary storage.
-1. On session start: Detect the active workspace path, inspect its partition in D:\AntigravityMemory\projects\<project_name>\memory.db, and ingest active ground-truth facts.
+1. On session start: Detect the active workspace path, inspect its partition in <STORAGE_ROOT>/projects/<project_name>/memory.db, and ingest active ground-truth facts.
 2. During session: When an architectural decision, hardware constraint, or schema change is agreed upon, record it to memory.db via `vault add`.
 3. Never mix facts across different project namespaces.
 ```
@@ -131,10 +131,10 @@ While agents manage read/write operations silently, a terminal utility is provid
 ### Example Query
 
 ```bash
-$ vault recall ssim
-[FYP_ScreenMind] Found 2 facts matching 'ssim':
-  - [PERCEPTION] perc_cpu_ssim: Replaced YOLOv11 with 384px CPU SSIM Perceptual Gate (tau=0.88).
-    Details: mss captures raw frames in ~3ms (20+ FPS continuous). Shrinks to 384px grayscale on CPU (0 MB GPU VRAM).
+$ vault recall auth
+[backend_api] Found 2 facts matching 'auth':
+  - [SECURITY] auth_jwt: Uses Ed25519 asymmetric JWT tokens with 15-minute expiration.
+    Details: Refresh tokens are stored in Redis with 7-day TTL and rotation on each refresh.
 ```
 
 ---
