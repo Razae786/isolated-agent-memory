@@ -17,20 +17,58 @@ Existing agent memory implementations typically introduce two structural problem
 
 `isolated-agent-memory` resolves this by using an embedded, filesystem-partitioned architecture:
 
+```mermaid
+flowchart TD
+    subgraph Env["1. Active Developer Environment"]
+        Agent["Coding Assistant Session<br/>(Antigravity / Claude / Cursor / Codex)"]
+        Hook["Harness Rule Hook<br/>(AGENTS.md / CLAUDE.md)"]
+        Agent -->|Auto-Invoke on Turn| Hook
+    end
+
+    subgraph Scope["2. Workspace Scope Resolver"]
+        Git["Git Root & Path Resolver<br/>(git rev-parse --show-toplevel)"]
+        Slug["Deterministic Slug Router<br/>(1:1 Workspace-to-Project Mapping)"]
+        Hook -->|Detect Active Path| Git
+        Git -->|Resolve Root Path| Slug
+    end
+
+    subgraph Storage["3. Secondary Storage Root (D:\\AntigravityMemory\\projects\\)"]
+        direction TB
+        PartA[("Partition A: FYP_ScreenMind<br/>memory.db (SQLite + FTS5)")]
+        PartB[("Partition B: AI_Job_Hunter<br/>memory.db (SQLite + FTS5)")]
+        PartC[("Partition C: Web_App_Client<br/>memory.db (SQLite + FTS5)")]
+        PartN[("Partition N: New Project<br/>memory.db (Auto-Created)")]
+    end
+
+    subgraph Engine["4. Zero-Daemon Persistence Engine"]
+        SQLite["Embedded SQLite 3 Engine<br/>(0 MB Daemon RAM / 0 MB VRAM)"]
+        FTS["FTS5 Full-Text Index<br/>(< 15ms Cold-Start Query)"]
+        Audit["Session Audit Checkpoints<br/>(Append-Only Continuity Log)"]
+        SQLite --> FTS
+        FTS --> Audit
+    end
+
+    Slug ==>|Routes to Partition A| PartA
+    Slug ==>|Routes to Partition B| PartB
+    Slug ==>|Routes to Partition C| PartC
+    Slug -.->|Auto-Provision Partition N| PartN
+
+    PartA <-->|In-Process Read/Write| SQLite
+    PartB <-->|In-Process Read/Write| SQLite
+    PartC <-->|In-Process Read/Write| SQLite
+
+    classDef env fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
+    classDef scope fill:#1e293b,stroke:#818cf8,stroke-width:2px,color:#f8fafc;
+    classDef storage fill:#0f172a,stroke:#34d399,stroke-width:2px,color:#f8fafc;
+    classDef engine fill:#1e293b,stroke:#f59e0b,stroke-width:2px,color:#f8fafc;
+
+    class Agent,Hook env;
+    class Git,Slug scope;
+    class PartA,PartB,PartC,PartN storage;
+    class SQLite,FTS,Audit engine;
 ```
-[ Active Agent Session ]
-           │
-           │  1. Resolve Workspace Path
-           ▼
-[ Workspace Scope Resolver ]
-           │
-           │  2. Direct Route (No Shared Index)
-           ▼
-[ Storage Root: D:\AntigravityMemory\projects\ ]
-   ├── project_alpha\memory.db    <-- Partition A (Isolated SQLite + FTS5)
-   ├── project_beta\memory.db     <-- Partition B (Isolated SQLite + FTS5)
-   └── project_gamma\memory.db    <-- Partition C (Isolated SQLite + FTS5)
-```
+
+> **Interactive Architecture Diagram:** Open [`assets/architecture.html`](assets/architecture.html) in your browser for the full interactive layout with pan/zoom and light/dark theme toggles.
 
 ---
 
